@@ -1,12 +1,19 @@
-import os, platform, sys, argparse, subprocess
+import os, platform, sys, argparse, subprocess, ipaddress, time
 
 # Fonction écriture fichier
-def ecrire_fichier(nom_fichier, contenu):
-    try :
-        with open(nom_fichier, "w") as fichier:
-          fichier.write(contenu)
-    except Exception as e:
-        print(f"Erreur lors de l'écriture dans %s : {e}" %(nom_fichier))
+def ecrire_fichier(nom_fichier, contenu, type):
+    if type == "a":
+        try :
+            with open(nom_fichier, "a") as fichier:
+              fichier.write(contenu)
+        except Exception as e:
+            print(f"Erreur lors de l'écriture dans %s : {e}" %(nom_fichier))
+    elif type == "w":        
+        try :
+            with open(nom_fichier, "w") as fichier:
+                fichier.write(contenu)
+        except Exception as e:
+            print(f"Erreur lors de l'écriture dans %s : {e}" %(nom_fichier))
 
 # Fonction lecture fichier
 def lire_fichier(nom_fichier):
@@ -51,15 +58,24 @@ def menu_interface(network):
     # Afficher le réseau sélectionné
     print("Vous avez choisi le réseau : " + network[choix])
 
-    # Scanner le réseau avec nmap
-    try:
-        nmap = subprocess.run(["nmap", "-sn", network[choix]], capture_output=True, text=True)
-        print(nmap.stdout)
-        # Mettre la sortie de la commande dans le fichier
-        ecrire_fichier("nmap.txt", nmap.stdout)
-    except FileNotFoundError:
-        print("L'outil nmap n'est pas installé. Veuillez l'installer pour utiliser cette fonctionnalité.")
+    return network[choix]
 
+# Fonction scan réseau avec ping
+def scan_network(network, OS):
+    ecrire_fichier("NetworkScan.txt", "Voici la liste des IP actives sur le réseau séléctionné: \n", "w")
+
+    # Récupérer l'ip
+    ip = network.split("/")[0]
+
+    for i in range(1, 256):
+        ip = ip.split(".")[0] + "." + ip.split(".")[1] + "." + ip.split(".")[2] + "." + str(i)
+        if OS == "Windows":
+            ping = subprocess.run(["ping", "-n", "1", ip], capture_output=True, text=True)
+        elif OS == "Linux":
+            ping = subprocess.run(["ping", "-c", "1", ip], capture_output=True, text=True)
+        if "Impossible" not in ping.stdout and "Unreachable" not in ping.stdout:
+            print(f"L'hôte {ip} est actif.")
+            ecrire_fichier("NetworkScan.txt", ip + "\n", "a")
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # CODE PRINCIPAL 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -82,7 +98,7 @@ if "Linux" in platform.uname():
     ifconfig = subprocess.run(["/usr/sbin/ip", "a"], capture_output=True, text=True)
 
     # Ecrire la confiration IP dans un fichier
-    ecrire_fichier("ipa.txt", ifconfig.stdout)
+    ecrire_fichier("ipa.txt", ifconfig.stdout, "w")
 
     # Récupérer et lister le répertoire du fichier
     print(lister_fichier())
@@ -92,7 +108,6 @@ if "Linux" in platform.uname():
     print(contenu)
         
     # Récupérer les adresses IP
-    print('Voici les IPv4 récupérées dans le fichier :')
     for ligne in contenu.splitlines():
         if "inet " in ligne:
             # Trouver la ligne qui commence par "inet "
@@ -106,8 +121,9 @@ if "Linux" in platform.uname():
     print(network)
 
     # Afficher le menu pour choisir l'interface réseau
-    menu_interface(network)
+    choix = menu_interface(network)
 
+    scan_network(choix, "Linux")
 
 elif "Windows" in platform.uname():
     # Je suis sous Windows
@@ -117,7 +133,7 @@ elif "Windows" in platform.uname():
     ipconfig = subprocess.run(["ipconfig"], capture_output=True, text=True)
 
     # Ecrire la confiration IP dans un fichier
-    ecrire_fichier("ipconfig.txt", ipconfig.stdout)
+    ecrire_fichier("ipconfig.txt", ipconfig.stdout, "w")
 
     # Récupérer et lister le répertoire du fichier
     print("Voici les fichiers dans le répertoire : ")
@@ -148,8 +164,13 @@ elif "Windows" in platform.uname():
                 network.append(network_ip + "/" + str(masque_calc))
     
     # Afficher le menu pour choisir l'interface réseau
-    menu_interface(network)
+    choix = menu_interface(network)
+
+    scan_network(choix, "Windows")
+
 
 else:
     # Je ne sais pas où je suis
     print("Unknown ???")
+
+print("Fin du scan. Vous retrouverez les résultats dans le fichier NetworkScan.txt")

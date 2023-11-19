@@ -1,16 +1,23 @@
-import os, platform, sys, argparse, subprocess, socket, requests, ipaddress
+import os, platform, sys, argparse, subprocess, socket, ipaddress
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # FONCTIONS
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # Fonction écriture fichier
-def ecrire_fichier(nom_fichier, contenu):
-    try :
-        with open(nom_fichier, "w") as fichier:
-          fichier.write(contenu)
-    except Exception as e:
-        print(f"Erreur lors de l'écriture dans %s : {e}" %(nom_fichier))
+def ecrire_fichier(nom_fichier, contenu, type):
+    if type == "a":
+        try :
+            with open(nom_fichier, "a") as fichier:
+              fichier.write(contenu)
+        except Exception as e:
+            print(f"Erreur lors de l'écriture dans %s : {e}" %(nom_fichier))
+    elif type == "w":        
+        try :
+            with open(nom_fichier, "w") as fichier:
+                fichier.write(contenu)
+        except Exception as e:
+            print(f"Erreur lors de l'écriture dans %s : {e}" %(nom_fichier))
 
 # Fonction lecture fichier
 def lire_fichier(nom_fichier):
@@ -36,6 +43,7 @@ def calcul_mask(premier, deuxieme, troisieme, quatrieme):
     masque_long = bin(masque_bin).count("1")
     return masque_long
 
+# Fonction menu et choix de l'interface
 def menu_interface(network):
     # Proposer un menu pour choisir l'interface réseau
     print("Voici les interfaces détectées sur votre poste : ")
@@ -53,23 +61,36 @@ def menu_interface(network):
 
     # Afficher le réseau sélectionné
     print("Vous avez choisi le réseau : " + network[choix])
-    return choix
 
-# Fonction pour scanner les ports avec nmap
-def scan_nmap(network, choix):
-    # Scanner le réseau avec nmap
-    try:
-        nmap = subprocess.run(["nmap", "-sn", network[choix]], capture_output=True, text=True)
-        if args.output:
-            # Mettre la sortie de la commande dans le fichier
-            ecrire_fichier("nmap.txt", nmap.stdout)
-        else:
-            print(nmap.stdout)
-    except FileNotFoundError:
-        print("L'outil nmap n'est pas installé. Veuillez l'installer pour utiliser cette fonctionnalité.")
+    return network[choix]
+
+# Fonction scan réseau avec ping
+def scan_network(network, OS):
+    if args.output:
+        ecrire_fichier("NetworkScan.txt", "Voici la liste des IP actives sur le réseau séléctionné: \n", "w")
+
+    # Récupérer l'ip
+    ip = network.split("/")[0]
+
+    for i in range(1, 256):
+        ip = ip.split(".")[0] + "." + ip.split(".")[1] + "." + ip.split(".")[2] + "." + str(i)
+        if OS == "Windows":
+            ping = subprocess.run(["ping", "-n", "1", ip], capture_output=True, text=True)
+        elif OS == "Linux":
+            ping = subprocess.run(["ping", "-c", "1", ip], capture_output=True, text=True)
+        if "Impossible" not in ping.stdout and "Unreachable" not in ping.stdout:
+            if args.output:
+                # Exporter le résultat dans un fichier
+                ecrire_fichier("NetworkScan.txt", ip + "\n", "a")
+            else :
+                print(f"L'hôte {ip} est actif.")
+
+        
 
 # Fonction pour scanner un port sur toutes les adresses IP d'un réseau
 def scan_socket(subnet, ports):
+    if args.output:
+        ecrire_fichier("socket.txt","Résultat du scan avec le socket : \n", "w")
     for ip in ipaddress.IPv4Network(subnet, strict=False):
         ip_str = str(ip)
         for port in ports:
@@ -80,7 +101,7 @@ def scan_socket(subnet, ports):
                 if result == 0:
                     if args.output:
                     # Exporter le résultat dans un fichier
-                        ecrire_fichier("socket.txt", f"Le port {port} est ouvert sur {ip_str}")
+                        ecrire_fichier("socket.txt", f"Le port {port} est ouvert sur {ip_str}", "a")
                     else :
                         print(f"Le port {port} est ouvert sur {ip_str}")
                 sock.close()
@@ -88,16 +109,19 @@ def scan_socket(subnet, ports):
                 print(f"Erreur lors du scan du port {port} sur {ip_str}")
 
 # Fonction pour les options
-def options():
+def options(OS):
     # Si l'option -p est utilisée
     if args.ping:
         # Afficher le menu pour choisir l'interface réseau
         choix = menu_interface(network)
-        scan_nmap(network, choix)
+        if OS == "Windows":
+            scan_network(choix, "Windows")
+        elif OS == "Linux":
+            scan_network(choix, "Linux")
     elif args.socket:
         # Afficher le menu pour choisir l'interface réseau
         choix = menu_interface(network)
-        scan_socket(network[choix], ports_to_scan)
+        scan_socket(choix, ports_to_scan)
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # OPTIONS
@@ -134,7 +158,7 @@ if "Linux" in platform.uname():
     ifconfig = subprocess.run(["/usr/sbin/ip", "a"], capture_output=True, text=True)
 
     # Ecrire la confiration IP dans un fichier
-    ecrire_fichier("ipa.txt", ifconfig.stdout)
+    ecrire_fichier("ipa.txt", ifconfig.stdout, "w")
 
     # Récupérer et lister le répertoire du fichier
     print(lister_fichier())
@@ -158,7 +182,7 @@ if "Linux" in platform.uname():
     print(network)
 
     # Déclencher la fonction des options
-    options()
+    options("Linux")
 
 elif "Windows" in platform.uname():
     # Je suis sous Windows
@@ -168,7 +192,7 @@ elif "Windows" in platform.uname():
     ipconfig = subprocess.run(["ipconfig"], capture_output=True, text=True)
 
     # Ecrire la confiration IP dans un fichier
-    ecrire_fichier("ipconfig.txt", ipconfig.stdout)
+    ecrire_fichier("ipconfig.txt", ipconfig.stdout, "w")
 
     # Récupérer et lister le répertoire du fichier
     print("Voici les fichiers dans le répertoire : ")
@@ -202,7 +226,7 @@ elif "Windows" in platform.uname():
     print(network)
     
     # Déclencher la fonction des options
-    options()
+    options("Windows")
 
 else:
     # Je ne sais pas où je suis
