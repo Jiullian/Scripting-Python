@@ -68,6 +68,7 @@ def menu_interface(network):
 def scan_network(network, OS):
     if args.output:
         ecrire_fichier("NetworkScan.txt", "Voici la liste des IP actives sur le réseau séléctionné: \n", "w")
+        print("Ecriture dans le fichier ...")
 
     # Récupérer l'ip
     ip = network.split("/")[0]
@@ -84,6 +85,8 @@ def scan_network(network, OS):
                 ecrire_fichier("NetworkScan.txt", ip + "\n", "a")
             else :
                 print(f"L'hôte {ip} est actif.")
+    
+    print("Fin d'écriture.")
 
         
 
@@ -91,6 +94,7 @@ def scan_network(network, OS):
 def scan_socket(subnet, ports):
     if args.output:
         ecrire_fichier("socket.txt","Résultat du scan avec le socket : \n", "w")
+        print("Ecriture dans le fichier ...")
     for ip in ipaddress.IPv4Network(subnet, strict=False):
         ip_str = str(ip)
         for port in ports:
@@ -101,12 +105,14 @@ def scan_socket(subnet, ports):
                 if result == 0:
                     if args.output:
                     # Exporter le résultat dans un fichier
-                        ecrire_fichier("socket.txt", f"Le port {port} est ouvert sur {ip_str}", "a")
+                        ecrire_fichier("socket.txt", f"Le port {port} est ouvert sur {ip_str} \n", "a")
                     else :
                         print(f"Le port {port} est ouvert sur {ip_str}")
                 sock.close()
             except socket.error:
                 print(f"Erreur lors du scan du port {port} sur {ip_str}")
+    
+    print("Fin d'écriture.")
 
 # Fonction pour les options
 def options(OS):
